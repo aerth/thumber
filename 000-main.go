@@ -14,15 +14,17 @@ import (
 )
 
 var (
-	port         = flag.String("port", "8081", "Port to serve on")
-	netint       = flag.String("bind", "127.0.0.1", "Interface to bind to")
-	uploadsDir   = flag.String("up", "uploads", "Directory to save uploaded files")
-	debug        = flag.Bool("v", false, "Enable logs")
-	perm         = flag.Int("perm", 0700, "Permissions for uploads directory")
-	maxusers     = flag.Int("max", 2, "Max users at one time")
-	customFormat = flag.String("custom", "", "Custom formatting."+formathelp)
-	version      = "Thumber v1"
-	formathelp   = `
+	port           = flag.String("port", "8081", "Port to serve on")
+	netint         = flag.String("bind", "127.0.0.1", "Interface to bind to")
+	uploadsDir     = flag.String("up", "uploads", "Directory to save uploaded files")
+	debug          = flag.Bool("v", false, "Enable logs")
+	noratelimiting = flag.Bool("swamped", false, "Disable rate limiting")
+	perm           = flag.Int("perm", 0700, "Permissions for uploads directory")
+	maxusers       = flag.Int("max", 1, "Max users at one time")
+	filenameLength = flag.Int("len", 100, "File ID length")
+	customFormat   = flag.String("custom", "", "Custom formatting."+formathelp)
+	version        = "Thumber v1"
+	formathelp     = `
 
 Here are the default URL formats.
 Your alternative one NEEDS 'w', 'h', and 'id' to work.
@@ -45,6 +47,7 @@ var r *mux.Router
 
 func init() {
 	of := flag.Usage
+
 	flag.Usage = func() {
 		fmt.Println(version)
 		fmt.Println("A thumbnail server")
@@ -70,11 +73,14 @@ func init() {
 
 func main() {
 	flag.Parse()
+
 	if len(flag.Args()) != 0 {
 		flag.Usage()
 		os.Exit(2)
 	}
-
+	if *debug {
+		log.SetFlags(log.Llongfile)
+	}
 	go func() {
 		time.Sleep(400 * time.Millisecond)
 		log.Printf("Serving on %s:%s", *netint, *port) // go func in case port is unavailable

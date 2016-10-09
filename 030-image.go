@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/aerth/filer"
 	"github.com/gorilla/mux"
@@ -48,23 +49,12 @@ func serve(route *mux.Router) {
 	}
 }
 
-// LogLiner listens for requests to come in and formats them into a log line.
-func logs() {
-	var totalhits int
-	for {
-		l := <-logchan
-		ip := strings.Split(l.RemoteAddr, ":")[0]
-		lim[ip]++
-		totalhits++
-		if visitor[ip] == 0 {
-			visitor[ip] = totalhits
-		}
-		s := fmt.Sprintf("%v (%+003v) #%+003v %s %q %q > %q %q", ip, visitor[ip], lim[ip], l.Method, l.RequestURI, l.UserAgent(), l.RemoteAddr, l.Host)
-		if l.Referer() != "" {
-			s += "ref: " + l.Referer()
-		}
-		log.Println(s)
-	}
+// Limiting struct
+type Limiting struct {
+	Since       time.Time
+	Until       time.Time
+	RateLimited bool
+	Count       int
 }
 
 // Generate random string
@@ -79,7 +69,7 @@ func keygen(n int) string {
 
 // Make sure keygen is unique file
 func unique() string {
-	id := keygen(10)
+	id := keygen(*filenameLength)
 	_, er := os.Open(id)
 	if er != nil {
 		if strings.Contains(er.Error(), "no such file or directory") {
