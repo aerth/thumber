@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"strings"
@@ -47,7 +48,7 @@ var r *mux.Router
 
 func init() {
 	of := flag.Usage
-
+	rand.Seed(time.Now().UnixNano())
 	flag.Usage = func() {
 		fmt.Println(version)
 		fmt.Println("A thumbnail server")

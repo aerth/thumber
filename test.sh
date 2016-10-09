@@ -1,5 +1,6 @@
 #!/bin/sh
 # aerth@riseup.net
+
 HELP='Thumber Stress Tester
 (Thumbnail server on :8081)
 
@@ -8,7 +9,9 @@ Usage:
 ./test.sh up
 ./test.sh home
 ./test.sh resize
-./test.sh cache'
+./test.sh cache
+
+Make sure to start the server with -swamped flag to disable rate limiting!'
 if [ -z $1 ]; then
 echo "$HELP"
 exit 1
@@ -24,7 +27,12 @@ done
 
 // Upload testdata/one.jpeg
 uploadTest() {
+  for i in {1..3200}; do
 curl --form file=@testdata/one.jpeg localhost:8081/upload -v
+done
+# then something like
+# for i in $(ls); do diff __pickone__ $i; done
+
 }
 
 // Send 3200 different width requests

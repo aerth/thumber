@@ -22,11 +22,12 @@ func getimage(id string) image.Image {
 		return nil
 	}
 	defer reader.Close()
-	m, _, err := image.Decode(reader)
+	m, s, err := image.Decode(reader)
 	if err != nil {
 		log.Println(err)
 		return nil
 	}
+	log.Println("Read Image:", s, *uploadsDir+id[:6])
 	return m
 }
 
