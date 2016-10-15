@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
-	"image"
+	"image/gif"
+	"image/jpeg"
+	"image/png"
 	"log"
 	"net/http"
 	"strconv"
@@ -16,97 +18,32 @@ import (
 
 var t1, t2 time.Time
 
-// Return a resized image based on request path variables
-func s0Resize(w http.ResponseWriter, r *http.Request) {
-	t1 = time.Now()
-	if !ifCachedDo(w, r) {
-		t2 = time.Now()
-		if *debug {
-			log.Println("Cache parse took:", t2.Sub(t1))
-		}
-		return
-	}
-	t2 = time.Now()
-	if *debug {
-		log.Println("NotUsingCache parse took:", t2.Sub(t1))
-	}
-	t1 = time.Now()
+func s0ResizeExt(w http.ResponseWriter, r *http.Request) {
 
-	defer unlimit()
-
-	// Decode URL, check width and height
+	log.Println("New resizor")
 	vars := mux.Vars(r)
-	width, err := strconv.Atoi(vars["w"])
-	if err != nil {
-		log.Println(err)
-		http.Redirect(w, r, "/", http.StatusFound)
-		return
-	}
-	height, err := strconv.Atoi(vars["h"])
-	if err != nil {
-		log.Println(err)
-		http.Redirect(w, r, "/", http.StatusFound)
-		return
-	}
-
-	if height > 10000 || width > 10000 {
-		log.Println("Too Large.")
-		http.Redirect(w, r, "/", http.StatusFound)
-		return
-	}
-
-	if height < 3 && width < 3 {
-		log.Println("Too Small.")
-		http.Redirect(w, r, "/", http.StatusFound)
-		return
-	}
-
-	// Check ID. (Could be 'filename.png')
 	id := vars["id"]
-	log.Println("Checking ID", id)
-	dotsplit := strings.Split(id, ".")
-	id = dotsplit[0] // 'filename' not 'png'
-	if len(dotsplit) == 1 {
-		log.Println("Going to resize!", id)
-		goto Resize
-	}
-	if len(dotsplit) > 2 { // Funny extension that we dont support yet
-		log.Println("Going to error!", id)
-		dotsplit[1] = "error"
-	}
-
-	// dotsplit[1] of 'filename.png' would be 'png'
-	switch dotsplit[1] {
-	case "jpeg": // 4
-	case "jpg", "png", "gif": //3
-	default: // everything else including "error" extension
-		log.Println("Bad extension.", dotsplit)
+	width, _ := strconv.Atoi(vars["w"])
+	height, _ := strconv.Atoi(vars["h"])
+	ext := vars["ext"]
+	if id == "" || ext == "" {
+		log.Println(id, ext, "blank one")
 		http.Redirect(w, r, "/", http.StatusFound)
 		return
 	}
 
-	id = dotsplit[0]
-
-Resize:
 	if len(id) != *filenameLength {
-		http.Redirect(w, r, "/", http.StatusFound)
 		log.Println(id, len(id), "!=", *filenameLength)
+		http.Redirect(w, r, "/", http.StatusFound)
 		return
 	}
-	if *debug {
-		log.Println("Request parse took:", t2.Sub(t1))
-	}
-	// Seems legit
-
-	if *debug {
-		log.Printf("Resize Request %q to: %vx%v", id, width, height)
-	}
+	log.Println("Getting image:", id)
 	t1 = time.Now()
 	im := getimage(id)
 	if im == nil {
-		if *debug {
-			log.Println("Nil image")
-		}
+
+		log.Println("Nil image")
+
 		http.Redirect(w, r, "/", http.StatusFound)
 		return
 	}
@@ -114,79 +51,50 @@ Resize:
 	if *debug {
 		log.Println("Image read took:", t2.Sub(t1))
 	}
+	resized := imaging.Resize(im, width, height, imaging.Lanczos)
+	var b bytes.Buffer
 
-	// Resize the image
-	resizechan := make(chan image.Image, 1)
-	go func() {
-		t1 = time.Now()
-		resized := imaging.Resize(im, width, height, imaging.Lanczos)
-
-		t2 = time.Now()
-		if *debug {
-			log.Println("Image resize took:", t2.Sub(t1))
+	switch ext {
+	case "png":
+		er := png.Encode(&b, resized)
+		if er != nil {
+			log.Println(er)
 		}
-		resizechan <- resized
-	}()
-	var resized image.Image
-	select {
-	case <-time.After(5 * time.Second):
-		log.Println("Timeout resizing.")
-		http.Redirect(w, r, "/?timeout", http.StatusBadRequest)
-		return
-	case incoming := <-resizechan:
-		resized = incoming
-	}
-	// Encode the bytes, using a buffer so we can cache it.
-	// Otherwise this would be much more simple of a function. (jpeg.Encode(w, newImage,nil))
-	t1 = time.Now()
-	var buf bytes.Buffer
-	defer buf.Reset()
-	imagechan := DetectFormat(buf, resized)
-	// switch on first receive
-	var ithing Imagething
-	select {
-	case thing := <-imagechan:
-		ithing = thing
-		switch thing.ext {
-		case "png":
-			log.Println("Got a PNG")
-		case "jpg":
-			log.Println("Got a JPG")
-		case "gif":
-			log.Println("Got a GIF")
-		default:
-			log.Println("What the fuck")
+	case "jpeg":
+		er := jpeg.Encode(&b, resized, nil)
+		if er != nil {
+			log.Println(er)
 		}
-	case <-time.After(5 * time.Second):
-		log.Println("Timeout. Cancelling request.")
-		http.Redirect(w, r, "/?timeout", http.StatusBadRequest)
+	case "gif":
+		er := gif.Encode(&b, resized, nil)
+		if er != nil {
+			log.Println(er)
+		}
+	default:
+		log.Println(ext, "what?")
+		http.Redirect(w, r, "/", http.StatusFound)
 		return
 	}
 
-	t2 = time.Now()
-	if *debug {
-		log.Println("Image encoding took:", t2.Sub(t1))
-	}
-	e := c1.Set(r.RequestURI, ithing.buf.Bytes())
-	if e != nil {
-		log.Println(e)
-		w.Write([]byte("Image Encoding Error"))
-		return
-	}
-	w.Write(ithing.buf.Bytes())
-	if *debug {
-		log.Printf("Created Cache: %vx%v %s (%v bytes in memory)", width, height, id, ithing.buf.Len())
-	}
+	w.Write(b.Bytes())
 }
 
 // Home page HTML form, caching disabled so we can redirect limited to home
 func s0Home(w http.ResponseWriter, r *http.Request) {
+
 	logchan <- r
+	if r.URL.Path != "/" || r.Method != "GET" {
+		log.Println("Home Redirecting:", r.URL.Path)
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
 	w.Write([]byte(header + form + footer))
 }
 
-// Return an original size image (cached+ratelimited)
+// Return an original size image (no encoding, cached and ratelimited)
 func s0Get(w http.ResponseWriter, r *http.Request) {
+	log.Println("s0Get")
+
 	if !ifCachedDo(w, r) {
 		return
 	}
@@ -196,14 +104,37 @@ func s0Get(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 	if id == "" {
+		log.Println("no id")
 		http.Redirect(w, r, "/", http.StatusFound)
+		return
 	}
 
-	// Get image bytes directly from file.
-	b := getbytes(id)
+	// Don't use extension, but test it.
+	ext := vars["ext"]
+	switch ext {
+	case "png", "jpg", "jpeg", "gif":
+	default:
+		http.Redirect(w, r, "/"+id, http.StatusFound)
+		return
+	}
+	_ = ext
 
+	// Get image bytes directly from file.
+	b, e := getbytes(id)
+	if e != nil {
+		if *debug {
+			log.Println("Image not found,", e)
+		}
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+	if b == nil {
+		log.Println("Image is 0 bytes")
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
 	// Set cache for URL
-	e := c1.Set(r.RequestURI, b)
+	e = c1.Set(r.RequestURI, b)
 	if e != nil {
 		log.Println(e)
 	}
@@ -216,30 +147,37 @@ func s0Get(w http.ResponseWriter, r *http.Request) {
 // The "uploaded" image is written exactly as the server receives it.
 // We don't know whether its a PNG, JPEG, or EXE at this point.
 func s0Upload(w http.ResponseWriter, r *http.Request) {
-	if !ifCachedDo(w, r) {
+	if !ifCachedDo(w, r) { // we dont cache here but we rate limit and log
 		return
 	}
-
 	defer unlimit()
-
 	ip := getip(r.RemoteAddr)
 	if visitor[ip] != nil {
 		if visitor[ip].RateLimited {
-			log.Println("Not serving, rate limited:", ip)
+			log.Println("Not uploading, rate limited:", ip)
 			http.Redirect(w, r, "/?limit", http.StatusForbidden)
 			return
 		}
 	}
 
-	if strings.Split(r.Header.Get("Content-Type"), ";")[0] != "multipart/form-data" {
-		log.Println("Not uploading, bad form.", ip, r.Header.Get("Content-Type"))
+	if e := r.ParseMultipartForm(10000); e != nil {
+		log.Println("Bad multipart form.", ip, r.Header.Get("Content-Type"))
 		http.Redirect(w, r, "/?bad", http.StatusForbidden)
 		return
 	}
+	// if strings.Split(r.Header.Get("Content-Type"), ";")[0] != "multipart/form-data" {
+	// 	log.Println("Not a multipart form.", ip, r.Header.Get("Content-Type"))
+	// 	http.Redirect(w, r, "/?bad", http.StatusForbidden)
+	// 	return
+	// }
 
 	_, fileheader, err := r.FormFile("file")
 	if err != nil {
-		log.Println(err)
+		log.Println("File read error", err)
+		//	bod, _ := ioutil.ReadAll(r.Body)
+		//fmt.Println(bod)
+
+		//fmt.Println("Lnegth of req body", len(bod))
 		http.Redirect(w, r, "/?bad", http.StatusForbidden)
 		return
 	}
@@ -256,7 +194,7 @@ func s0Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Read the file into buffer (only to cache)
+	// Read the file into buffer (only to cache it)
 	var buf bytes.Buffer
 	i, e := buf.ReadFrom(openfile)
 	if e != nil {
@@ -272,6 +210,7 @@ func s0Upload(w http.ResponseWriter, r *http.Request) {
 	filer.Write(*uploadsDir+id, buf.Bytes())
 	log.Println("Uploaded:", *uploadsDir+id)
 
-	// Redirect to a 120xAutoHeight thumbnail
-	http.Redirect(w, r, "/120/0/"+id, http.StatusFound)
+	// Redirect to a 320xAutoHeight thumbnail
+	log.Println("Redirecting to:", "/320/0/"+id+"."+extension)
+	http.Redirect(w, r, "/320/0/"+id+"."+extension, http.StatusFound)
 }

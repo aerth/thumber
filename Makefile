@@ -8,7 +8,7 @@ RELEASE:=${VERSION}.X${COMMIT}
 CLEANFILES=
 
 # Build a static linked binary
-export CGO_ENABLED=0
+#export CGO_ENABLED=0
 
 # Embed commit version into binary
 GO_LDFLAGS=-ldflags "-s -X main.version=$(RELEASE)"

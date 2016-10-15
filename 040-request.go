@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"strings"
 	"sync"
@@ -57,7 +58,9 @@ func logs() {
 			log.Println("UnLocking for RateLimiter write")
 		}
 		if user == nil {
-			log.Println("New User", ip)
+			if *debug {
+				log.Println("New User", ip)
+			}
 			user = &Limiting{Since: time.Now()}
 			pass = true
 		}
@@ -112,7 +115,13 @@ func logs() {
 		if l.Referer() != "" {
 			s += "ref: " + l.Referer()
 		}
-		log.Println(s)
+		if *debug {
+			log.Println(s)
+			s, _ := ioutil.ReadAll(l.Body)
+			str := string(s)
+			log.Println("request body:", len(str), l.URL.Path)
+
+		}
 		t2 = time.Now()
 		if *debug {
 			log.Println("Log function took:", t2.Sub(t0))

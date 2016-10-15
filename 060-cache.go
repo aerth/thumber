@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 	"net/http"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -62,6 +64,32 @@ func ifCachedDo(w http.ResponseWriter, r *http.Request) bool {
 	// only cache GETs
 	if r.Method != "GET" {
 		return true
+	}
+	origSize, e := regexp.Compile(`^/[a-zA-Z0-9]{` +
+		strconv.Itoa(*filenameLength) + `}(.png|.jpg|.jpeg|.gif)$`)
+	if e != nil {
+		panic(e)
+	}
+	thumbSize, e := regexp.Compile(`^/[0-9]/[0-9]/[a-zA-Z0-9]{` +
+		strconv.Itoa(*filenameLength) + `}(.png|.jpg|.jpeg|.gif)$`)
+	if e != nil {
+		panic(e)
+	}
+	// CANT MATCH BOTH LOL
+	if origSize.MatchString(r.URL.Path) {
+		//fmt.Println(r.URL.Path, "matches Original Size")
+	} else if thumbSize.MatchString(r.URL.Path) {
+		//fmt.Println(r.URL.Path, "matches THUMBNAIL size")
+	} else {
+		if *debug {
+			log.Println(r.URL.Path, "is not a valid Thumber path")
+		}
+		http.Redirect(w, r, "/", http.StatusFound)
+		unlimit()
+		return false
+	}
+	if *debug {
+		log.Println("Request is a valid Thumber path to be considered for caching.")
 	}
 	path := r.RequestURI
 	cached, err := c1.Get(path)

@@ -1,16 +1,14 @@
 package main
 
-var header = `
-
-<!DOCTYPE html>
+var header = `<!DOCTYPE html>
 <html>
 <head>
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 	<meta name="viewport" content="width=device-width">
 	<meta name="theme-color" content="#375EAB">
 	<title>` + version + `</title>
-	<link type="text/css" rel="stylesheet" href="/static/css/style.css">
-<style>
+` +
+	`<style>
 body{
   color: green;
   background-color:   #E0EBF5;

@@ -17,7 +17,7 @@ echo "$HELP"
 exit 1
 fi
 
-// Visit localhost:8081, 3200 times
+# Visit localhost:8081, 3200 times
 homeTest() {
   for i in {1..3200}; do
   curl localhost:8081 >& /dev/null
@@ -25,7 +25,7 @@ homeTest() {
 done
 }
 
-// Upload testdata/one.jpeg
+# Upload testdata/one.jpeg
 uploadTest() {
   for i in {1..3200}; do
 curl --form file=@testdata/one.jpeg localhost:8081/upload -v
@@ -35,12 +35,12 @@ done
 
 }
 
-// Send 3200 different width requests
+# Send 3200 different width requests
 resizeTest() {
 curl localhost:8081/{1..3200}/0/90238293a2d966b44304981634a3686281980b853a5ge9447219792937ddf9674a3d4010130046261c566591233a61e92b5f
 }
 
-// 4 of the same requests
+# 4 of the same requests
 cacheTest() {
 curl localhost:8081/100/100/90238293a2d966b44304981634a3686281980b853a5ge9447219792937ddf9674a3d4010130046261c566591233a61e92b5f
 }
